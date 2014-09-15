@@ -1,0 +1,491 @@
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Cube Master</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<script type="text/javascript" src="js/jquery.js"></script>
+        <script type="text/javascript" src="cordova.js"></script>
+        <script type="text/javascript" src="js/index.js"></script>
+		<link type="text/css" rel="stylesheet" href="style.css"/>
+	</head>
+	<body>		
+		<div id="startPage">
+			<div id="options">
+				<div class="title">
+					<h1>Cube Master v2</h1>
+				</div>
+				<div id="startButton" class="option">
+					<p>Start</p>
+				</div>
+				<div id="optionButton" class="option">
+					<p>Options</p>
+				</div>
+				<div id="highscoreButton" class="option">
+					<p>High Scores</p>
+				</div>
+			</div>
+		</div>
+		
+		<div id="gamePage">
+			<div class="startCounter">
+				<div class="startCounterTime">
+					<!-- Counter Numbers Edited by JS -->
+				</div>
+				<!-- start coundown timer-->
+			</div>
+			<div class="flash">
+				<div class="flashtext">
+					<!--flashtext edited by function-->
+				</div>
+			</div>
+			<div id="textContainer">
+				<div class="counter">
+					<!-- level coundown timer-->
+
+				</div>
+				<div class="instructions">
+					<!-- instructions on which face to move cube-->
+				</div>
+				<div id="levelCode">
+					<h3>Level</h3><span></span><!-- level code-->
+				</div>
+			</div>
+		</div>
+		
+		<script src="three.js"></script>
+
+		<script src="stats.min.js"></script>
+
+		<script>
+			
+			
+			$(function(){
+				
+				//fist boot - show startpage and hide cube;
+				$('#startPage').show();
+				
+				//declarations
+				
+				var level = 1;
+				var lives = 3;
+				var faceRequired;
+				var newLevel;
+				var instructionsChildren;
+				var instructions = [];
+				var instruction;
+				var faceTriggered;
+				var faceAlreadyTriggered;
+				var spanNum;
+				var x, y;
+				
+				var container, stats;
+			
+				var camera, scene, renderer;
+
+				var cube, plane;
+				var faceIndex, currentFace;
+
+				var targetRotation = 0;
+				var targetRotationX = 0;
+				var targetRotationOnMouseDown = 0;
+				var targetRotationOnMouseDownX = 0;
+
+				var mouseX = 0;
+				var mouseY = 0;
+				var mouseXOnMouseDown = 0;
+				var mouseYOnMouseDown = 0;
+
+				var windowHalfX = window.innerWidth / 2;
+				var windowHalfY = window.innerHeight / 2;
+				
+				init();
+				animate();
+				
+				//event handlers
+				
+				$('body').on("startGame", function(){
+					startGame(level);
+				});
+				$('body').on("end", function(){
+					homeScreen();
+				});
+				$('body').on("timeout", function(){
+					retryGame(level, lives);	
+				});
+				$('body').on("levelUp", function(){
+					newLevel = parseInt($('#levelCode span').text());
+					flash("Level "+newLevel+" Completed");
+					newLevel++;
+					startGame(newLevel);
+					clearInterval(timerFunction);
+				});
+				
+				//button handlers
+				
+				$('body').on('click touchstart', '#startButton', function(){
+					$('body').trigger('startGame');
+				});
+				
+				//game functions
+				
+				function flash(message){
+					$('.flashtext').text(message);
+					$('.flash').show();
+					setTimeout(function(){
+						$('.flash').fadeOut();
+					},500);
+				}
+			
+				function startGame(level){
+					spanNum = 1;
+
+					$('#levelCode span').text(level);
+					$('#startPage').hide();
+					$('#levelCode').show();
+					$('.cube').show();
+					$('.instructions').text('');
+					
+					var startCountdown = 3;
+					
+					if(level<2){
+						$('.startCounterTime').html('<p>Get Ready</p><p>'+startCountdown+'</p>');
+						$('.startCounter').show();
+					}
+					
+					initCountdown = setInterval(function(){
+						startCountdown -= 1;
+						if(startCountdown !=0){
+							$('.startCounterTime').html('<p>Get Ready</p><p>'+startCountdown+'</p>');
+						}else{
+							$('.startCounterTime').html('<p>Get Ready</p><p>GO!</p>');
+						}
+						if(startCountdown < 0){
+							$('.startCounter').hide();
+							clearInterval(initCountdown);
+							timer(10);
+						}
+					},700);
+					
+					var numFaces = Math.floor(level*0.6);
+					if(numFaces<1){
+						numFaces = 1;
+					}
+					
+					for (i = 0; i < numFaces; i++) { 
+						faceRequired = Math.floor((Math.random() * 6) + 1);
+						while(faceRequired==x){
+							faceRequired = Math.floor((Math.random() * 6) + 1);
+						}
+    					$('.instructions').append("<span id='"+faceRequired+"'>"+faceRequired+"</span>");
+    					x = faceRequired;
+					}
+					
+				
+				//finds the amount of faces needed for level
+					//number is in instructionsChildren
+					instructionsChildren = $('.instructions').children().length;
+					
+					for(i = 1; i <= instructionsChildren; i++){
+						instruction = $(".instructions span:nth-child("+i+")").attr('id');
+						instructions.push(instruction);
+					}
+					
+					//this is what is waiting for the face event, triggered by onDocumentTouchMove
+					$('body').on("face", function(e){
+						
+						if(instructions.length == 0){
+							$('body').trigger('levelUp');
+						}
+						
+						
+						//ive had to check if there is a new face triggered to stop thousands 
+						//of events being fired on 1mm of touch movement
+						
+						faceTriggered = e.val;
+						if(faceTriggered != faceAlreadyTriggered){
+							faceAlreadyTriggered = e.val;
+							if (instructions.length > 0) {
+								if(e.val==instructions[0]){
+									//set the acheived instruction to bold 
+									//so the player knows to move on
+									//we can do anything here, but for now 
+									//i'm just making it bold - no a different color - no fade out
+									$(".instructions span:nth-child("+spanNum+")").addClass("green");
+									$(".instructions span:nth-child("+spanNum+")").fadeOut('fast');
+									console.log((".instructions span:nth-child("+spanNum+")"));
+									//remove the first entry in the array.
+									instructions.shift();
+									spanNum++;
+								}
+							}
+						}
+						
+					});
+					
+					
+				
+					
+				}
+				
+				function retryGame(level, lives){
+					
+				}
+				
+				function homeScreen(){
+					
+				}
+
+				function timer(s){
+					secs = s;
+					timerFunction = setInterval(function(){
+					if(secs === '0.0'){
+						$('.counter').text('you lose');
+						clearInterval(timerFunction);
+						//handle lost here
+					}
+					else if(secs > 0){
+						secs -= 0.1;
+						secs = Math.round(secs*10)/10;
+						$('.counter').text(secs);
+					}
+					if(secs.toString().length<2){
+						secs = secs+'.0';
+						$('.counter').text(secs);
+					}
+					}, 100);
+				}
+				
+				
+				function init() {
+
+				container = document.createElement( 'div' );
+				container.className = 'cube';
+				document.body.appendChild( container );
+
+				
+
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 1000 );
+				camera.position.y = 150;
+				camera.position.z = 500;
+
+				scene = new THREE.Scene();
+
+				// Cube
+
+				var geometry = new THREE.BoxGeometry( 200, 200, 200, 3, 3, 3 );
+
+				/*	
+				for ( var i = 0; i < geometry.faces.length; i += 2 ) {
+
+					var hex = Math.random() * 0xffffff;
+					geometry.faces[ i ].color.setHex( hex );
+					geometry.faces[ i + 1 ].color.setHex( hex );
+
+				}
+				*/
+				
+
+				var material = new THREE.MeshBasicMaterial( { vertexColors: THREE.FaceColors, overdraw: 0.5 } );
+				
+				var materials = [
+					new THREE.MeshLambertMaterial({
+        				map: THREE.ImageUtils.loadTexture( 'img/1.png' ) }),
+    				new THREE.MeshLambertMaterial({
+        				map: THREE.ImageUtils.loadTexture( 'img/2.png' ) }),
+    				new THREE.MeshLambertMaterial({
+        				map: THREE.ImageUtils.loadTexture( 'img/3.png' ) }),
+    				new THREE.MeshLambertMaterial({
+        				map: THREE.ImageUtils.loadTexture( 'img/4.png' ) }),
+    				new THREE.MeshLambertMaterial({
+        				map: THREE.ImageUtils.loadTexture( 'img/5.png' ) }),
+    				new THREE.MeshLambertMaterial( {
+    			 		map: THREE.ImageUtils.loadTexture( 'img/6.png' ) })
+					];
+				
+				
+				cube = new THREE.Mesh( geometry, new THREE.MeshFaceMaterial(materials) );
+				//cube = new THREE.Mesh( geometry, material );
+				cube.position.y = 150;
+				scene.add( cube );
+
+				// Plane
+
+				var geometry = new THREE.PlaneGeometry( 200, 200 );
+				geometry.applyMatrix( new THREE.Matrix4().makeRotationX( - Math.PI / 2 ) );
+
+				var material = new THREE.MeshBasicMaterial( { color: 0xe0e0e0, overdraw: 0.5 } );
+				
+
+				plane = new THREE.Mesh( geometry, material );
+				//scene.add( plane );
+				
+			
+				renderer = new THREE.CanvasRenderer();
+				renderer.setClearColor( 0xf0f0f0 );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				container.appendChild( stats.domElement );
+
+				document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+				document.addEventListener( 'touchstart', onDocumentTouchStart, false );
+				document.addEventListener( 'touchmove', onDocumentTouchMove, false );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onWindowResize() {
+
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			//
+
+			function onDocumentMouseDown( event ) {
+
+				event.preventDefault();
+
+				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+				document.addEventListener( 'mouseup', onDocumentMouseUp, false );
+				document.addEventListener( 'mouseout', onDocumentMouseOut, false );
+
+				mouseXOnMouseDown = event.clientX - windowHalfX;
+				targetRotationOnMouseDown = targetRotation;
+
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				mouseX = event.clientX - windowHalfX;
+
+				targetRotation = targetRotationOnMouseDown + ( mouseX - mouseXOnMouseDown ) * 0.02;
+
+			}
+
+			function onDocumentMouseUp( event ) {
+
+				document.removeEventListener( 'mousemove', onDocumentMouseMove, false );
+				document.removeEventListener( 'mouseup', onDocumentMouseUp, false );
+				document.removeEventListener( 'mouseout', onDocumentMouseOut, false );
+
+			}
+
+			function onDocumentMouseOut( event ) {
+
+				document.removeEventListener( 'mousemove', onDocumentMouseMove, false );
+				document.removeEventListener( 'mouseup', onDocumentMouseUp, false );
+				document.removeEventListener( 'mouseout', onDocumentMouseOut, false );
+
+			}
+
+			function onDocumentTouchStart( event ) {
+
+				if ( event.touches.length === 1 ) {
+
+					event.preventDefault();
+
+					mouseXOnMouseDown = event.touches[ 0 ].pageX - windowHalfX;
+					targetRotationOnMouseDown = targetRotation;
+					
+					mouseYOnMouseDown = event.touches[ 0 ].pageY - windowHalfY;
+					targetRotationOnMouseDownX = targetRotationX;
+
+				}
+
+			}
+
+			function onDocumentTouchMove( event ) {
+
+				if ( event.touches.length === 1 ) {
+
+					event.preventDefault();
+					
+					mouseY = event.touches[ 0 ].pageY - windowHalfY;
+					targetRotationX = targetRotationOnMouseDownX + ( mouseY - mouseYOnMouseDown ) * 0.02;
+
+					mouseX = event.touches[ 0 ].pageX - windowHalfX;
+					targetRotation = targetRotationOnMouseDown + ( mouseX - mouseXOnMouseDown ) * 0.02;
+
+					var ray = new THREE.Raycaster( camera.position, cube.position.clone().sub( camera.position ).normalize() );
+					var intersects = ray.intersectObjects( scene.children, true );
+					faceIndex = intersects[0].faceIndex;
+					
+					//faceIndex is pulled from the three.Raycaster object.
+					// i have got the following to decipher the current face and the Int of this is in currentFace
+					//obviously this is only avaliable in onDocumentTouchMove
+						
+						if (faceIndex < 18){
+							currentFace = '1';
+						}else if (faceIndex < 36){
+							currentFace = '2';
+						}else if (faceIndex < 54){
+							currentFace = '3';
+						}else if (faceIndex < 72){
+							currentFace = '4';
+						}else if (faceIndex < 90){
+							currentFace = '5';
+						} else if (faceIndex < 108){
+							currentFace = '6';
+						}
+							
+					//do some stuff with the current face here!
+					//check the instructions div for which face to spin to
+										
+					$('body').trigger({
+						type:"face",
+						val:currentFace
+					});
+					
+					//here I need someway of detecting the instructions from ".instructions span"
+					//but there may not only be one for each level the instructions increase by Math.floor(level*0.6)
+					// once the player has spun to the first instruction, it moves onto the next etc...
+					
+					
+				}
+
+			}
+
+			//
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				render();
+				stats.update();
+
+			}
+
+			function render() {
+
+				plane.rotation.y = cube.rotation.y += ( targetRotation - cube.rotation.y ) * 0.05;
+				plane.rotation.x = cube.rotation.x += (targetRotationX - cube.rotation.x ) * 0.05;
+				renderer.render( scene, camera );
+				
+
+			}
+			
+			
+			
+			});
+
+		</script>
+
+	</body>
+</html>
