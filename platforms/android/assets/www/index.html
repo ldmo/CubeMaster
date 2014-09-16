@@ -107,6 +107,7 @@
 				
 				$('body').on("startGame", function(){
 					startGame(level);
+					timer(15);
 				});
 				$('body').on("end", function(){
 					homeScreen();
@@ -120,6 +121,7 @@
 					newLevel++;
 					startGame(newLevel);
 					clearInterval(timerFunction);
+					timer(10);
 				});
 				
 				//button handlers
@@ -164,7 +166,6 @@
 						if(startCountdown < 0){
 							$('.startCounter').hide();
 							clearInterval(initCountdown);
-							timer(10);
 						}
 					},700);
 					
@@ -256,9 +257,8 @@
 					}
 					}, 100);
 				}
-				
-				
-				function init() {
+
+								function init() {
 
 				container = document.createElement( 'div' );
 				container.className = 'cube';
@@ -480,12 +480,8 @@
 				
 
 			}
-			
-			
-			
 			});
-
 		</script>
-
+		<script type="text/javascript" src="init.js"></script>
 	</body>
 </html>
